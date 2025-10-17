@@ -302,6 +302,7 @@ if st.session_state.pending_response and pdf_chunks:
     
     with st.chat_message("assistant"):
         placeholder = st.empty()
+        full_response = ""
         
         try:
             # Buscar contexto relevante
@@ -315,26 +316,36 @@ if st.session_state.pending_response and pdf_chunks:
                 if msg["role"] != "system":
                     messages.append({"role": msg["role"], "content": msg["content"]})
             
-            completion = client.chat.completions.create(
-                model=model_selector,
-                messages=messages,
-                temperature=0.6,
-                max_tokens=2048,
-                stream=False
-            )
-            
-            full_response = completion.choices[0].message.content
-            displayed = stream_with_delay(full_response, placeholder)
-            placeholder.markdown(displayed)
-            
+            try:
+                completion = client.chat.completions.create(
+                    model=model_selector,
+                    messages=messages,
+                    temperature=0.6,
+                    max_tokens=2048,
+                    stream=False
+                )
+                
+                full_response = completion.choices[0].message.content
+                displayed = stream_with_delay(full_response, placeholder)
+                placeholder.markdown(displayed)
+                
+            except Exception as e:
+                error_msg = str(e).lower()
+                
+                if "rate_limit" in error_msg or "429" in error_msg or "quota" in error_msg:
+                    full_response = "⚠️ **De momento no puedo responder preguntas** - He alcanzado el límite de tokens. Intenta más tarde. 💜"
+                else:
+                    full_response = f"Disculpa, tuve un error técnico 😅\n\nError: {str(e)[:100]}"
+                
+                placeholder.markdown(full_response)
+        
         except Exception as e:
-            full_response = f"Disculpa, tuve un error técnico 😅\n\nError: {str(e)}"
+            full_response = f"Disculpa, tuve un error técnico 😅\n\nError: {str(e)[:100]}"
             placeholder.markdown(full_response)
     
     if full_response:
         st.session_state.messages.append({"role": "assistant", "content": full_response})
         st.rerun()
-
 # Input usuario
 if prompt := st.chat_input("Escribe aquí tu pregunta sobre SOP... 💭"):
     
